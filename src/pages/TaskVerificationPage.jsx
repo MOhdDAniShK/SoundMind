@@ -4,9 +4,10 @@ import { useAppContext } from '../contexts/AppContext';
 import { initializeFaceLandmarker } from '../services/mediapipeService';
 import { captureSnapshot, verifyTaskCompletion, getTaskType } from '../services/taskVerificationService';
 
-// ── Curated reading passages by type ──
+// ── Curated reading passages by type with comprehension questions ──
 const READING_PASSAGES = {
-  fiction: `The Little Match Girl — Hans Christian Andersen
+  fiction: {
+    text: `The Little Match Girl — Hans Christian Andersen
 
 It was so terribly cold. Snow was falling, and it was almost dark. Evening came on, the last evening of the year. In the cold and gloom a poor little girl, bareheaded and barefoot, was walking through the streets. Of course when she had left her house she'd had slippers on, but what good had they been? They were very big slippers, way too big for her, for they belonged to her mother. The little girl had lost them running across the road, where two carriages had rattled by terribly fast. One slipper she could not find again, and a boy had run off with the other, saying he could use it for a cradle when he had children of his own.
 
@@ -25,8 +26,14 @@ She lighted another match. Now she was sitting under the most beautiful Christma
 She rubbed another match against the wall. It became bright again, and in the brightness there stood her old grandmother, clear and shining, yet mild and loving in her appearance. "Grandmother," cried the little one, "Oh, take me with you! I know you will go away when the match burns out; you will vanish like the warm stove, the roast goose, and the large, glorious Christmas tree." And she made haste to light the whole bundle of matches, for she wished to keep her grandmother there. And the matches glowed with a light that was brighter than the noon-day, and her grandmother had never appeared so large or so beautiful. She took the little girl in her arms, and they both flew upwards in brightness and joy far above the earth, where there was neither cold nor hunger nor pain, for they were with God.
 
 In the dawn of morning there lay the poor little one, with pale cheeks and smiling mouth, leaning against the wall; she had been frozen to death on the last evening of the year; and the New Year's sun rose and shone upon a little corpse! The child still sat, in the stiffness of death, holding the matches in her hand, one bundle of which was burned. "She tried to warm herself," said some. No one imagined what beautiful things she had seen, nor into what glory she had entered with her grandmother, on New Year's day.`,
-
-  comfort: `The Secret Garden (Excerpt) — Frances Hodgson Burnett
+    questions: [
+      { q: "What did the little girl lose when she ran across the road?", options: ["Her matches", "Her slippers", "Her apron", "Her hat"], answer: 1 },
+      { q: "What did the little girl see when she struck the second match?", options: ["A warm iron stove", "A beautiful Christmas tree", "A shining dinner service with roast goose", "Her grandmother"], answer: 2 },
+      { q: "Who did the little girl see in the brightness of the last matches she lit?", options: ["A merchant", "Her mother", "Her father", "Her grandmother"], answer: 3 }
+    ]
+  },
+  comfort: {
+    text: `The Secret Garden (Excerpt) — Frances Hodgson Burnett
 
 Mary had stepped close to the robin, and suddenly the gust of wind swung aside some loose ivy trails, and more suddenly still she jumped toward it and caught it in her hand. This she did because she had seen something under it—a round knob which had been covered by the leaves hanging over it. It was the knob of a door.
 
@@ -43,8 +50,14 @@ She was standing inside the secret garden.
 It was the sweetest, most mysterious-looking place any one could imagine. The high walls which shut it in were covered with the leafless stems of climbing roses, which were so thick that they were matted together. Mary Lennox knew they were roses because she had seen a great many roses in India. All the ground was covered with grass of a wintry brown and out of it grew clumps of bushes which were surely rosebushes if they were alive. There were numbers of standard roses which had so spread their branches that they were like little trees. There were other trees in the garden, and one of the things which made the place look strangest and loveliest was that climbing roses had run all over them and swung down long tendrils which made light swaying curtains, and here and there they had caught at each other or at a far-reaching branch and had crept from one tree to another and made lovely bridges of themselves.
 
 It was this hazy tangle from tree to tree which made it all look so mysterious. Mary had thought it must be different from other gardens which had not been left all by themselves so long; and indeed it was different from any other place she had ever seen in her life.`,
-
-  poetry: `Ulysses — Alfred, Lord Tennyson
+    questions: [
+      { q: "What did Mary find covered by the ivy leaves?", options: ["A hidden key", "The knob of a door", "A sleeping robin", "A beautiful flower"], answer: 1 },
+      { q: "How long had the door been closed?", options: ["Ten years", "Five years", "One hundred years", "A few months"], answer: 0 },
+      { q: "What was climbing all over the high walls and trees inside the garden?", options: ["Grapevines", "Poison ivy", "Leafless stems of roses", "Apple trees"], answer: 2 }
+    ]
+  },
+  poetry: {
+    text: `Ulysses — Alfred, Lord Tennyson
 
 It little profits that an idle king,
 By this still hearth, among these barren crags,
@@ -117,7 +130,13 @@ We are not now that strength which in old days
 Moved earth and heaven; that which we are, we are;
 One equal temper of heroic hearts,
 Made weak by time and fate, but strong in will
-To strive, to seek, to find, and not to yield.`
+To strive, to seek, to find, and not to yield.`,
+    questions: [
+      { q: "How does the speaker describe the people he rules over?", options: ["A savage race that hoards, sleeps, and feeds", "A noble people who honor his name", "A wise council of elders", "A broken nation ruined by war"], answer: 0 },
+      { q: "Who does the speaker plan to leave the sceptre and the isle to?", options: ["The great Achilles", "His aged wife", "His son Telemachus", "His faithful mariners"], answer: 2 },
+      { q: "What is the speaker's ultimate resolve at the end of the poem?", options: ["To rest from travel and stay home", "To rule his kingdom justly", "To strive, to seek, to find, and not to yield", "To rebuild the ringing plains of Troy"], answer: 2 }
+    ]
+  }
 };
 
 const DEFAULT_PASSAGE = READING_PASSAGES.fiction;
@@ -129,7 +148,7 @@ const TaskVerificationPage = () => {
 
   const videoRef = useRef(null);
   const textareaRef = useRef(null);
-  const [phase, setPhase] = useState('setup');
+  const [phase, setPhase] = useState('setup'); // setup | task | reading_quiz | verify | result
   const [baseline, setBaseline] = useState(null);
   const [result, setResult] = useState(null);
   const [timeLeft, setTimeLeft] = useState(0);
@@ -145,7 +164,10 @@ const TaskVerificationPage = () => {
 
   // Writing mode state
   const [writtenText, setWrittenText] = useState('');
-  const wordCount = writtenText.trim().split(/\s+/).filter(Boolean).length;
+  const wordCount = writtenText.trim().split(/\\s+/).filter(Boolean).length;
+
+  // Reading quiz state
+  const [quizAnswers, setQuizAnswers] = useState({});
 
   // ── Use verifyMode from task object, fallback to regex detection ──
   const getTaskMode = () => {
@@ -164,8 +186,8 @@ const TaskVerificationPage = () => {
   // Get config values from task or defaults
   const verifyConfig = currentTask?.verifyConfig || {};
   const minWords = verifyConfig.minWords || 30;
-  const writingPrompt = verifyConfig.prompt || 'Write about anything — how you\'re feeling, a story, your thoughts. Just keep writing!';
-  const readingPassage = READING_PASSAGES[verifyConfig.passage] || DEFAULT_PASSAGE;
+  const writingPrompt = verifyConfig.prompt || "Write about anything — how you're feeling, a story, your thoughts. Just keep writing!";
+  const readingData = READING_PASSAGES[verifyConfig.passage] || DEFAULT_PASSAGE;
 
   // Tab-lock: detect visibility change
   useEffect(() => {
@@ -238,8 +260,19 @@ const TaskVerificationPage = () => {
   };
 
   const handleTaskComplete = async () => {
-    setPhase('verify');
+    if (taskMode === 'reading') {
+      setPhase('reading_quiz');
+      return;
+    }
+    await verifyAndComplete();
+  };
 
+  const handleQuizSubmit = async () => {
+    await verifyAndComplete();
+  };
+
+  const verifyAndComplete = async () => {
+    setPhase('verify');
     let verifyResult;
 
     if (taskMode === 'writing') {
@@ -256,13 +289,23 @@ const TaskVerificationPage = () => {
         ],
       };
     } else if (taskMode === 'reading') {
+      // Check quiz answers
+      let correctAnswers = 0;
+      readingData.questions.forEach((q, i) => {
+        if (quizAnswers[i] === q.answer) correctAnswers++;
+      });
+      const passedQuiz = correctAnswers >= Math.ceil(readingData.questions.length / 2);
       const focused = tabAwayCount <= 2 && totalAwayTime < 30;
+      
+      const overallPassed = passedQuiz && focused;
+      
       verifyResult = {
-        verified: focused,
-        confidence: focused ? 90 : Math.max(20, 90 - tabAwayCount * 15),
-        passedChecks: (tabAwayCount <= 2 ? 1 : 0) + (totalAwayTime < 30 ? 1 : 0),
-        totalChecks: 2,
+        verified: overallPassed,
+        confidence: overallPassed ? 90 : Math.max(20, 90 - (tabAwayCount * 15) - ((readingData.questions.length - correctAnswers) * 20)),
+        passedChecks: (passedQuiz ? 1 : 0) + (tabAwayCount <= 2 ? 1 : 0) + (totalAwayTime < 30 ? 1 : 0),
+        totalChecks: 3,
         details: [
+          passedQuiz ? `✅ Reading Comprehension (${correctAnswers}/${readingData.questions.length})` : `⚠️ Comprehension failed (${correctAnswers}/${readingData.questions.length})`,
           tabAwayCount <= 2 ? `✅ Stayed focused (${tabAwayCount} tab switches)` : `⚠️ Left tab ${tabAwayCount} times`,
           totalAwayTime < 30 ? `✅ Total away time: ${Math.round(totalAwayTime)}s` : `⚠️ Away for ${Math.round(totalAwayTime)}s`,
         ],
@@ -341,7 +384,8 @@ const TaskVerificationPage = () => {
                 </>}
                 {taskMode === 'reading' && <>
                   <li style={{ padding: '0.4rem 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>📖 Read the passage we'll display for you</li>
-                  <li style={{ padding: '0.4rem 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>⏱️ Stay focused for the full {Math.floor((currentTask.duration || 300) / 60)} minutes</li>
+                  <li style={{ padding: '0.4rem 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>⏱️ Stay focused for the full duration</li>
+                  <li style={{ padding: '0.4rem 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>🧠 Answer a brief comprehension quiz at the end to verify</li>
                   <li style={{ padding: '0.4rem 0', color: 'var(--color-text-secondary)', fontSize: '0.9rem' }}>🔒 Don't switch tabs — we track your focus</li>
                 </>}
                 {(taskMode === 'creative' || taskMode === 'listening' || taskMode === 'generic') && <>
@@ -414,13 +458,13 @@ const TaskVerificationPage = () => {
 
             {taskMode === 'reading' && (
               <div>
-                <div className="metric-card" style={{ maxHeight: 400, overflowY: 'auto', lineHeight: 1.9 }}>
-                  <p style={{ color: 'var(--color-text-secondary)', fontSize: '1.05rem', whiteSpace: 'pre-line' }}>
-                    {readingPassage}
+                <div className="metric-card" style={{ maxHeight: 400, overflowY: 'auto', lineHeight: 1.9, textAlign: 'left', padding: '1.5rem' }}>
+                  <p style={{ color: 'var(--color-text-main)', fontSize: '1.05rem', whiteSpace: 'pre-line' }}>
+                    {readingData.text}
                   </p>
                 </div>
                 <p className="mt-3 text-center" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                  Stay on this tab. Tab switches: {tabAwayCount}
+                  Read carefully. A short comprehension quiz will appear when the timer ends.
                 </p>
               </div>
             )}
@@ -449,6 +493,54 @@ const TaskVerificationPage = () => {
             <div className="text-center mt-6">
               <button className="btn btn-success px-8 py-3" onClick={handleTaskComplete} disabled={isPaused}>
                 I'm Done ✅
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ READING QUIZ PHASE ═══ */}
+        {phase === 'reading_quiz' && (
+          <div className="text-left max-w-2xl mx-auto">
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center', color: 'var(--color-text-accent)' }}>Reading Comprehension</h2>
+            <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', marginBottom: '2rem' }}>
+              Please answer a few quick questions to verify you completed the reading.
+            </p>
+            
+            <div className="space-y-6 mb-8">
+              {readingData.questions.map((q, qIndex) => (
+                <div key={qIndex} className="metric-card">
+                  <p style={{ fontWeight: 600, marginBottom: '1rem', color: 'var(--color-text-main)' }}>{qIndex + 1}. {q.q}</p>
+                  <div className="space-y-2">
+                    {q.options.map((opt, oIndex) => (
+                      <label key={oIndex} className="flex items-center gap-3 p-3 rounded-lg cursor-pointer" style={{
+                        background: quizAnswers[qIndex] === oIndex ? 'rgba(99, 102, 241, 0.1)' : 'rgba(255,255,255,0.02)',
+                        border: `1px solid ${quizAnswers[qIndex] === oIndex ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                        transition: 'all 0.2s'
+                      }}>
+                        <input
+                          type="radio"
+                          name={`question-${qIndex}`}
+                          checked={quizAnswers[qIndex] === oIndex}
+                          onChange={() => setQuizAnswers(prev => ({ ...prev, [qIndex]: oIndex }))}
+                          style={{ accentColor: 'var(--color-primary)' }}
+                        />
+                        <span style={{ color: quizAnswers[qIndex] === oIndex ? 'var(--color-primary)' : 'var(--color-text-secondary)' }}>
+                          {opt}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center">
+              <button 
+                className="btn btn-primary px-8 py-3" 
+                onClick={handleQuizSubmit}
+                disabled={Object.keys(quizAnswers).length < readingData.questions.length}
+              >
+                Submit Answers
               </button>
             </div>
           </div>

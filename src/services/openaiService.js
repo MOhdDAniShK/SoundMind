@@ -9,13 +9,15 @@ const MOCK_DELAY = 1200;
 // ── Evidence-based indirect stress assessment questions ──
 // These probe behavioral patterns, sleep, cognition, and emotions
 // WITHOUT directly asking "how stressed are you?"
+// NOTE: Static profile questions (hobbies, primary stressor, overwhelming subject)
+// are collected at consent/login time, not during the survey.
 const FALLBACK_QUESTIONS = [
   {
     id: 1,
     text: "In the past week, how often have you felt that things were going your way?",
     type: "radio",
     options: ["Almost always", "Often", "Sometimes", "Rarely", "Never"],
-    stressDirection: "positive", // positive = "good" answers → LOW stress
+    stressDirection: "positive",
   },
   {
     id: 2,
@@ -29,7 +31,7 @@ const FALLBACK_QUESTIONS = [
     text: "How often have you found yourself unable to stop thinking about all the things you have to do?",
     type: "radio",
     options: ["Never", "Rarely", "Sometimes", "Often", "Almost always"],
-    stressDirection: "negative", // negative = "bad" answers → HIGH stress
+    stressDirection: "negative",
   },
   {
     id: 4,
@@ -55,91 +57,22 @@ const FALLBACK_QUESTIONS = [
   },
   {
     id: 7,
-    text: "How would you describe your appetite in the last few days?",
-    type: "radio",
-    options: ["Normal & healthy", "Slightly irregular", "Eating more than usual", "Eating less than usual", "Barely eating or binge eating"],
-    stressDirection: "positive",
-  },
-  {
-    id: 8,
     text: "How often have you felt that difficulties were piling up so high you couldn't overcome them?",
     type: "radio",
     options: ["Never", "Rarely", "Sometimes", "Often", "Almost always"],
     stressDirection: "negative",
   },
   {
-    id: 9,
-    text: "How does your body feel right now?",
-    type: "emoji",
-    options: ["💪", "👍", "😐", "😰", "🤯"],
-    values: [9, 7, 5, 3, 1],
-    stressDirection: "positive",
-  },
-  {
-    id: 10,
-    text: "How often have you been able to control irritations in your life this past week?",
-    type: "radio",
-    options: ["Almost always", "Often", "Sometimes", "Rarely", "Never"],
-    stressDirection: "positive",
-  },
-  {
-    id: 11,
-    text: "What are your favorite hobbies or things to do in your idle time?",
-    type: "text",
-    placeholder: "e.g., Running, Gaming, Drawing, Reading...",
-  },
-  {
-    id: 12,
-    text: "How often have you experienced headaches, muscle tension, or stomach issues in the past week?",
-    type: "radio",
-    options: ["Never", "Once or twice", "A few times", "Frequently", "Almost daily"],
-    stressDirection: "negative",
-  },
-  {
-    id: 13,
+    id: 8,
     text: "When you think about tomorrow, what emotion comes to mind first?",
     type: "emoji",
     options: ["😄", "🙂", "😐", "😟", "😨"],
     values: [9, 7, 5, 3, 1],
     stressDirection: "positive",
   },
-  {
-    id: 14,
-    text: "How often have you felt lonely or disconnected from people around you lately?",
-    type: "radio",
-    options: ["Never", "Rarely", "Sometimes", "Often", "Almost always"],
-    stressDirection: "negative",
-  },
-  {
-    id: 15,
-    text: "How easily can you fall asleep and stay asleep?",
-    type: "radio",
-    options: ["Very easily", "Fairly easily", "It takes some effort", "I struggle most nights", "I can barely sleep"],
-    stressDirection: "positive",
-  },
-  {
-    id: 16,
-    text: "How often do you engage in physical exercise or outdoor activities?",
-    type: "radio",
-    options: ["Daily", "4-5x per week", "2-3x per week", "Rarely (1x/week)", "Never"],
-    stressDirection: "positive",
-  },
-  {
-    id: 17,
-    text: "What is the primary thing taking up most of your mental energy right now?",
-    type: "select",
-    options: ["Academic/Grades", "Social/Relationships", "Family", "Health", "Financial", "Career/Future", "Nothing specific"],
-  },
-  {
-    id: 18,
-    text: "How often do you procrastinate or avoid tasks you know are important?",
-    type: "radio",
-    options: ["Never", "Rarely", "Sometimes", "Often", "Almost always"],
-    stressDirection: "negative",
-  },
   // ── Indirect Academic Stress Probes ──
   {
-    id: 19,
+    id: 9,
     text: "When you look at your assignment list or to-do board, how many items feel overdue or incomplete?",
     type: "radio",
     options: ["None — I'm caught up", "One or two minor things", "A handful that keep slipping", "Several I've lost track of", "So many I've stopped checking"],
@@ -147,7 +80,7 @@ const FALLBACK_QUESTIONS = [
     academicTag: "backlog",
   },
   {
-    id: 20,
+    id: 10,
     text: "If someone quizzed you right now on the material you're currently studying, how would you feel?",
     type: "emoji",
     options: ["😎", "🙂", "😐", "😰", "🤯"],
@@ -156,7 +89,7 @@ const FALLBACK_QUESTIONS = [
     academicTag: "exam_readiness",
   },
   {
-    id: 21,
+    id: 11,
     text: "How often do you re-read the same page or section because it doesn't click the first time?",
     type: "radio",
     options: ["Almost never", "Occasionally", "Sometimes", "Frequently", "Almost every time I study"],
@@ -164,30 +97,19 @@ const FALLBACK_QUESTIONS = [
     academicTag: "comprehension",
   },
   {
-    id: 22,
+    id: 12,
     text: "When you sit down to start studying, how long does it usually take before you actually begin focused work?",
     type: "radio",
     options: ["I start within a few minutes", "About 10-15 minutes", "Around 20-30 minutes", "Over 30 minutes", "I often don't start at all"],
     stressDirection: "negative",
     academicTag: "time_management",
   },
-  {
-    id: 23,
-    text: "When is your next major deadline or exam?",
-    type: "date",
-  },
-  {
-    id: 24,
-    text: "What subject or area feels most overwhelming to you right now?",
-    type: "text",
-    placeholder: "e.g., AP Calculus, Organic Chemistry, Social life...",
-  },
 ];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Generate 20 stress assessment questions via OpenAI GPT-4o.
+ * Generate 12 stress assessment questions via Gemini AI.
  * Falls back to hardcoded questions if API is unavailable.
  */
 export const generateSurveyQuestions = async () => {
@@ -196,14 +118,14 @@ export const generateSurveyQuestions = async () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        count: 24,
+        count: 12,
       }),
     });
 
     if (!response.ok) throw new Error('API response not ok');
     const data = await response.json();
 
-    if (data.questions && Array.isArray(data.questions) && data.questions.length >= 15) {
+    if (data.questions && Array.isArray(data.questions) && data.questions.length >= 10) {
       return data.questions.map((q, i) => ({ ...q, id: i + 1 }));
     }
 

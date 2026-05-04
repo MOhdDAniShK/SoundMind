@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -61,20 +62,47 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
-// Helper: Convert OpenAI-style messages to Gemini format
 const toGeminiHistory = (messages) => {
-  return messages.map(m => ({
+  if (!messages || messages.length === 0) return [];
+
+  let history = messages.map(m => ({
     role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
+    parts: [{ text: m.content || ' ' }],
   }));
+
+  if (history[0].role === 'model') {
+    history.unshift({ role: 'user', parts: [{ text: 'Hello' }] });
+  }
+
+  const normalized = [];
+  for (let i = 0; i < history.length; i++) {
+    if (normalized.length === 0) {
+      normalized.push(history[i]);
+    } else {
+      if (normalized[normalized.length - 1].role === history[i].role) {
+        normalized.push({
+          role: history[i].role === 'user' ? 'model' : 'user',
+          parts: [{ text: 'I understand.' }]
+        });
+      }
+      normalized.push(history[i]);
+    }
+  }
+
+  if (normalized.length > 0 && normalized[normalized.length - 1].role === 'user') {
+    normalized.push({ role: 'model', parts: [{ text: 'Please continue.' }] });
+  }
+
+  return normalized;
 };
 
 // Model fallback order — if one model hits quota, try the next
 const CHAT_MODELS = [
-  'gemini-2.5-flash',
+  'gemini-3.1-flash-lite-preview',
   'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-lite-001',
   'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
+  'gemini-2.5-flash',
 ];
 
 // Helper: Chat with Gemini (auto-fallback across models)
@@ -254,7 +282,7 @@ ${stressScore <= 4 ? `- LOW STRESS: Be encouraging and celebratory. Help them ma
 // ──── Question Generation Endpoint ────
 app.post('/api/gemini/questions', async (req, res) => {
   try {
-    const { count = 20 } = req.body;
+    const { count = 12 } = req.body;
 
     if (!process.env.GEMINI_API_KEY) {
       return res.status(503).json({ error: 'Gemini API key not configured on server' });
@@ -264,34 +292,30 @@ app.post('/api/gemini/questions', async (req, res) => {
 
 CRITICAL: Do NOT ask direct questions like "how stressed are you" or "rate your stress level". Instead, use INDIRECT behavioral and situational questions that reveal stress through patterns:
 - Sleep quality and habits
-- Appetite and eating patterns
 - Concentration and cognitive function
 - Physical symptoms (headaches, tension)
-- Social withdrawal vs. connection
 - Emotional regulation ability
 - Procrastination and avoidance behaviors
 - Sense of control over life events
-- Physical activity levels
 - Morning mood and outlook on the day
+- Academic backlog and exam readiness
+- Comprehension difficulties
+- Time management and focus
 
 IMPORTANT RULES:
 1. Each question must have a "stressDirection" field: "positive" (high value = low stress) or "negative" (high value = high stress).
-2. One question MUST ask about the student's favorite hobbies or things they do in idle time (type: "text").
-3. One question MUST ask about their primary source of mental energy drain (type: "select").
-4. One question MUST ask about their most overwhelming subject/area (type: "text").
-5. One question MUST ask about their next major deadline (type: "date").
-6. Mix different question types for engagement.
+2. Do NOT include questions about hobbies, favorite activities, primary stressor, overwhelming subject, or deadlines — those are collected separately.
+3. Include 4 academic stress probe questions with an "academicTag" field: one each for "backlog", "exam_readiness", "comprehension", and "time_management".
+4. Mix different question types for engagement.
 
 Return a JSON array of question objects. Each object must have:
 - "text": the question text
-- "type": one of "slider", "radio", "emoji", "text", "select", "date"
-- "stressDirection": "positive" or "negative" (omit for text/select/date types)
+- "type": one of "slider", "radio", "emoji"
+- "stressDirection": "positive" or "negative"
 - For "slider": include "min" (number), "max" (number), "labels" (array of 2 strings for min/max)
 - For "radio": include "options" (array of 3-5 strings, ordered from BEST to WORST for "positive", or BEST to WORST for "negative")
 - For "emoji": include "options" (array of 5 emoji strings) and "values" (array of 5 numbers 1-9, high = good)
-- For "select": include "options" (array of strings)
-- For "text": include "placeholder" (string)
-- For "date": no extra fields needed
+- Optionally include "academicTag" for academic probe questions
 
 Return ONLY a JSON object with a "questions" key containing the array.`;
 
@@ -376,37 +400,143 @@ Return ONLY the JSON object.`;
   }
 });
 
-// ──── Parent Notification Endpoint ────
+// ──── Parent Notification Endpoint (Real Email via Nodemailer) ────
 app.post('/api/notify-parent', async (req, res) => {
   try {
-    const { parentName, parentPhone, parentEmail, stressScore, message } = req.body;
+    const { parentName, parentPhone, parentEmail, studentName, stressScore, message } = req.body;
 
-    // Log the notification (in production, this would send via Twilio/SendGrid)
+    if (!parentEmail) {
+      return res.status(400).json({ error: 'Parent email is required' });
+    }
+
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('📧 PARENT NOTIFICATION TRIGGERED');
-    console.log(`   To: ${parentName || 'Parent/Guardian'}`);
-    if (parentEmail) console.log(`   Email: ${parentEmail}`);
-    if (parentPhone) console.log(`   Phone: ${parentPhone}`);
+    console.log(`   To: ${parentName || 'Parent/Guardian'} <${parentEmail}>`);
+    console.log(`   Student: ${studentName || 'Your child'}`);
     console.log(`   Stress Score: ${stressScore}/10`);
-    console.log(`   Message: ${message}`);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    // In production, integrate with:
-    // - Twilio for SMS: twilio.messages.create({ to: parentPhone, body: message })
-    // - SendGrid for email: sgMail.send({ to: parentEmail, subject: 'SoundMind Alert', text: message })
+    const smtpEmail = process.env.SMTP_EMAIL;
+    const smtpPassword = process.env.SMTP_PASSWORD;
 
-    // Simulate a short delay for realism
-    await new Promise(r => setTimeout(r, 1500));
+    if (!smtpEmail || !smtpPassword) {
+      console.warn('⚠️ SMTP credentials not configured (SMTP_EMAIL / SMTP_PASSWORD). Email logged but NOT sent.');
+      console.log(`   Would send to: ${parentEmail}`);
+      console.log(`   Message: ${message}`);
+      return res.json({
+        success: true,
+        method: 'log_only',
+        recipient: parentName || 'Parent/Guardian',
+        message: 'Notification logged (SMTP not configured — add SMTP_EMAIL and SMTP_PASSWORD to .env to send real emails)',
+      });
+    }
+
+    // Create Nodemailer transporter with Gmail SMTP
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: smtpEmail,
+        pass: smtpPassword,
+      },
+    });
+
+    const studentDisplay = studentName || 'Your child';
+    const parentDisplay = parentName || 'Parent/Guardian';
+
+    // Professional HTML email template
+    const htmlEmail = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:2rem 1rem;">
+    <!-- Header -->
+    <div style="text-align:center;padding:2rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:16px 16px 0 0;">
+      <div style="font-size:2.5rem;margin-bottom:0.5rem;">🧠</div>
+      <h1 style="color:white;margin:0;font-size:1.75rem;font-weight:700;">SoundMind Alert</h1>
+      <p style="color:rgba(255,255,255,0.8);margin:0.5rem 0 0;font-size:0.95rem;">Student Wellness Notification</p>
+    </div>
+
+    <!-- Body -->
+    <div style="background:#1a1a2e;padding:2rem;border:1px solid rgba(255,255,255,0.08);">
+      <p style="color:#e2e8f0;font-size:1rem;line-height:1.6;margin-top:0;">
+        Dear <strong>${parentDisplay}</strong>,
+      </p>
+      <p style="color:#cbd5e1;font-size:0.95rem;line-height:1.7;">
+        We're reaching out because <strong style="color:#f8fafc;">${studentDisplay}</strong> recently completed a wellness assessment on <strong style="color:#f8fafc;">SoundMind</strong>, our AI-powered student stress detection platform.
+      </p>
+
+      <!-- Score Badge -->
+      <div style="text-align:center;margin:1.5rem 0;">
+        <div style="display:inline-block;padding:1rem 2rem;border-radius:12px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.3);">
+          <div style="color:#fca5a5;font-size:0.85rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Stress Level Detected</div>
+          <div style="color:#ef4444;font-size:2.5rem;font-weight:800;margin:0.25rem 0;">${stressScore}/10</div>
+          <div style="color:#f87171;font-size:0.9rem;font-weight:600;">⚠️ Critical — Immediate Attention Recommended</div>
+        </div>
+      </div>
+
+      <p style="color:#cbd5e1;font-size:0.95rem;line-height:1.7;">
+        Your son/Daughter is very stressed , you should call him/her to check upon him ensuring his wellness
+      </p>
+
+      <!-- What You Can Do -->
+      <div style="background:rgba(255,255,255,0.04);border-radius:12px;padding:1.25rem;margin:1.5rem 0;border:1px solid rgba(255,255,255,0.06);">
+        <h3 style="color:#e2e8f0;margin:0 0 0.75rem;font-size:1rem;">💡 What You Can Do</h3>
+        <ul style="color:#94a3b8;font-size:0.9rem;line-height:1.8;margin:0;padding-left:1.25rem;">
+          <li>Start a gentle, non-judgmental conversation with ${studentDisplay}</li>
+          <li>Ask open-ended questions like "How have you been feeling lately?"</li>
+          <li>Listen without immediately trying to fix the problem</li>
+          <li>Reassure them that it's okay to ask for help</li>
+          <li>Consider connecting with a school counselor or mental health professional</li>
+        </ul>
+      </div>
+
+      <!-- Crisis Resources -->
+      <div style="background:rgba(239,68,68,0.08);border-radius:12px;padding:1.25rem;margin:1.5rem 0;border:1px solid rgba(239,68,68,0.2);">
+        <h3 style="color:#fca5a5;margin:0 0 0.75rem;font-size:1rem;">🆘 Crisis Resources</h3>
+        <p style="color:#94a3b8;font-size:0.875rem;line-height:1.6;margin:0;">
+          If you believe your child is in immediate danger:<br/>
+          <strong style="color:#f8fafc;">988 Suicide & Crisis Lifeline:</strong> Call or text <strong style="color:#60a5fa;">988</strong><br/>
+          <strong style="color:#f8fafc;">Crisis Text Line:</strong> Text <strong style="color:#60a5fa;">HOME</strong> to <strong style="color:#60a5fa;">741741</strong><br/>
+          <strong style="color:#f8fafc;">Emergency:</strong> Call <strong style="color:#60a5fa;">911</strong>
+        </p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;padding:1.5rem;background:#12121f;border-radius:0 0 16px 16px;border:1px solid rgba(255,255,255,0.05);border-top:none;">
+      <p style="color:#64748b;font-size:0.8rem;margin:0;line-height:1.6;">
+        This email was sent automatically by <strong>SoundMind</strong> because your child opted in to parent notifications.<br/>
+        All assessment data is processed locally and is not stored on our servers.
+      </p>
+      <p style="color:#475569;font-size:0.75rem;margin:0.75rem 0 0;">
+        © ${new Date().getFullYear()} SoundMind — AI-Powered Student Wellness
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const mailOptions = {
+      from: `"SoundMind Alert" <${smtpEmail}>`,
+      to: parentEmail,
+      subject: `⚠️ SoundMind Alert: ${studentDisplay}'s stress level is critical (${stressScore}/10)`,
+      text: `Dear ${parentDisplay},\n\nYour son/Daughter is very stressed , you should call him/her to check upon him ensuring his wellness\n\n— SoundMind Team`,
+      html: htmlEmail,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully to ${parentEmail}`);
 
     res.json({
       success: true,
-      method: parentEmail ? 'email' : 'sms',
-      recipient: parentName || 'Parent/Guardian',
-      message: 'Notification sent successfully',
+      method: 'email',
+      recipient: parentDisplay,
+      message: 'Email notification sent successfully',
     });
   } catch (error) {
     console.error('Parent notification error:', error);
-    res.status(500).json({ error: 'Failed to send notification' });
+    res.status(500).json({ error: 'Failed to send notification: ' + (error.message || 'Unknown error') });
   }
 });
 // ──── Google Auth Endpoint ────
@@ -478,6 +608,66 @@ app.get('/api/assessments', async (req, res) => {
   }
 });
 
+// ──── Test Email Endpoint (for verifying SMTP config) ────
+app.post('/api/test-email', async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ error: 'Email address required' });
+
+    const smtpEmail = process.env.SMTP_EMAIL;
+    const smtpPassword = process.env.SMTP_PASSWORD;
+
+    if (!smtpEmail || !smtpPassword) {
+      return res.status(503).json({
+        error: 'SMTP not configured. Add SMTP_EMAIL and SMTP_PASSWORD to .env',
+        smtpEmail: !!smtpEmail,
+        smtpPassword: !!smtpPassword,
+      });
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: smtpEmail, pass: smtpPassword },
+    });
+
+    await transporter.sendMail({
+      from: `"SoundMind Test" <${smtpEmail}>`,
+      to,
+      subject: '✅ SoundMind Email Service — Test Successful',
+      text: 'This is a test email from SoundMind. If you received this, the email service is working correctly!',
+      html: `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f0f1a;font-family:'Segoe UI',sans-serif;">
+  <div style="max-width:500px;margin:0 auto;padding:2rem 1rem;">
+    <div style="text-align:center;padding:2rem;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:16px 16px 0 0;">
+      <div style="font-size:3rem;margin-bottom:0.5rem;">✅</div>
+      <h1 style="color:white;margin:0;font-size:1.5rem;">Email Service Working!</h1>
+    </div>
+    <div style="background:#1a1a2e;padding:2rem;border-radius:0 0 16px 16px;border:1px solid rgba(255,255,255,0.08);text-align:center;">
+      <p style="color:#e2e8f0;font-size:1rem;line-height:1.6;">
+        This is a test email from <strong>SoundMind</strong>.
+      </p>
+      <p style="color:#94a3b8;font-size:0.9rem;line-height:1.6;">
+        If you're reading this, your SMTP configuration is correct and parent notifications will work when a student's stress score reaches 9+/10.
+      </p>
+      <div style="margin-top:1.5rem;padding:1rem;background:rgba(34,197,94,0.1);border-radius:8px;border:1px solid rgba(34,197,94,0.3);">
+        <p style="color:#4ade80;font-size:0.85rem;margin:0;">🧠 SoundMind — AI-Powered Student Wellness</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`,
+    });
+
+    console.log(`✅ Test email sent to ${to}`);
+    res.json({ success: true, message: `Test email sent to ${to}` });
+  } catch (error) {
+    console.error('Test email error:', error.message);
+    res.status(500).json({ error: 'Failed to send test email: ' + error.message });
+  }
+});
+
 // ──── Serve static files in production ────
 if (process.env.NODE_ENV === 'production') {
   const distPath = join(__dirname, '..', 'dist');
@@ -492,5 +682,6 @@ if (process.env.NODE_ENV === 'production') {
 app.listen(port, () => {
   console.log(`\n🧠 SoundMind server running at http://localhost:${port}`);
   console.log(`   Gemini API Key: ${process.env.GEMINI_API_KEY ? '✅ Configured' : '❌ Missing — set GEMINI_API_KEY in .env'}`);
+  console.log(`   SMTP Email: ${process.env.SMTP_EMAIL ? '✅ Configured' : '⚠️ Not configured — parent email notifications will be logged only'}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}\n`);
 });

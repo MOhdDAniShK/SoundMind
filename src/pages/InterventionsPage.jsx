@@ -4,14 +4,13 @@ import { useAppContext } from '../contexts/AppContext';
 import InterventionCard from '../components/InterventionCard';
 import BreathingExercise from '../components/BreathingExercise';
 import AnimatedBackground from '../components/AnimatedBackground';
-import { getWellnessAdvice } from '../services/claudeService';
+
 import { CONSTANTS } from '../utils/constants';
 
 const InterventionsPage = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useAppContext();
-  const [wellnessAdvice, setWellnessAdvice] = useState('');
-  const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
+
   const [parentMessageSent, setParentMessageSent] = useState(state.parentNotificationSent || false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const { finalScore, userHobbies, consent, parentContact, academicStressType } = state;
@@ -196,18 +195,10 @@ const InterventionsPage = () => {
     }).slice(0, 10);
   };
 
-  // ── Load AI wellness advice for low stress ──
+  // ── Redirect if no score ──
   useEffect(() => {
-    if (finalScore === 0) { navigate('/consent'); return; }
-    if (stressTier === 'low') {
-      (async () => {
-        setIsLoadingAdvice(true);
-        const advice = await getWellnessAdvice(finalScore, hobbies);
-        setWellnessAdvice(advice);
-        setIsLoadingAdvice(false);
-      })();
-    }
-  }, [finalScore, navigate, hobbies, stressTier]);
+    if (finalScore === 0) { navigate('/home'); return; }
+  }, [finalScore, navigate]);
 
   // ── Auto-send parent notification for critical stress ──
   useEffect(() => {
@@ -255,32 +246,64 @@ const InterventionsPage = () => {
       case 'low':
         return (
           <div className="space-y-6">
-            <InterventionCard
-              title="You're Doing Great! 🌟"
-              description="Your stress levels are healthy. Keep up the good work and maintain your wellness habits."
-              icon="🌱"
-              color={CONSTANTS.COLORS.LOW}
-              primary
-            />
+            {/* Stress-free celebration card */}
+            <div className="glass-card" style={{
+              borderLeft: `4px solid ${CONSTANTS.COLORS.LOW}`,
+              background: 'rgba(34,197,94,0.06)',
+              textAlign: 'center',
+              padding: '3rem 2rem',
+            }}>
+              <div style={{ fontSize: '4rem', marginBottom: '1rem', animation: 'pulse 3s infinite' }}>🌟</div>
+              <h2 style={{
+                fontSize: '2rem',
+                fontWeight: 800,
+                marginBottom: '0.75rem',
+                WebkitTextFillColor: 'unset',
+                background: 'none',
+                color: CONSTANTS.COLORS.LOW,
+              }}>
+                You Are OK and Stress Free!
+              </h2>
+              <p style={{
+                fontSize: '1.1rem',
+                color: 'var(--color-text-secondary)',
+                maxWidth: '500px',
+                margin: '0 auto 1.5rem',
+                lineHeight: 1.7,
+              }}>
+                Great news — your stress levels are healthy and within a normal range.
+                Keep up the amazing work and continue doing what makes you happy! 🎉
+              </p>
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.6rem 1.5rem',
+                borderRadius: '9999px',
+                background: 'rgba(34,197,94,0.12)',
+                border: '1px solid rgba(34,197,94,0.25)',
+                color: '#4ade80',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+              }}>
+                ✅ Score: {finalScore.toFixed(1)}/10 — No intervention needed
+              </div>
+            </div>
 
-            {/* AI Wellness Advice */}
+            {/* Encouragement tips */}
             <div className="glass-card" style={{ borderLeft: `3px solid ${CONSTANTS.COLORS.LOW}` }}>
               <div className="flex items-start gap-4">
                 <span className="text-3xl shrink-0">💡</span>
                 <div className="flex-1">
                   <h3 className="text-lg font-semibold mb-3" style={{ WebkitTextFillColor: 'unset', background: 'none', color: 'var(--color-text-main)' }}>
-                    AI Wellness Tips
+                    Keep It Going!
                   </h3>
-                  {isLoadingAdvice ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: 'var(--color-primary)', borderTopColor: 'transparent' }} />
-                      <span className="text-sm text-[var(--color-text-muted)]">Generating personalized advice...</span>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-[var(--color-text-secondary)] whitespace-pre-line leading-relaxed mb-0">
-                      {wellnessAdvice}
-                    </p>
-                  )}
+                  <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed mb-0" style={{ whiteSpace: 'pre-line' }}>
+{`1. 🧘 Keep up your hobbies — ${hobbies || 'the activities you enjoy'} are natural stress buffers.
+2. 😴 Maintain your sleep routine — consistent sleep is your biggest ally.
+3. 👫 Stay connected — regular chats with friends and family keep your mood elevated.
+4. 🎉 Celebrate small wins — acknowledge what's going well, not just what's hard.`}
+                  </p>
                 </div>
               </div>
             </div>
@@ -299,21 +322,16 @@ const InterventionsPage = () => {
               primary
             />
 
-            {/* Hobby-based tasks */}
+            {/* Hobby-based tasks only */}
             <div>
               <h2 className="text-xl font-bold mb-4" style={{ WebkitTextFillColor: 'unset', background: 'none', color: 'var(--color-text-main)' }}>
-                🎯 Stress-Buster Tasks
+                🎯 Hobby-Based Stress Busters
               </h2>
               <p className="text-sm text-[var(--color-text-muted)] mb-4">
-                Based on your hobbies: <strong style={{ color: 'var(--color-text-accent)' }}>{hobbies}</strong>
-                {academicStressType && (
-                  <span style={{ marginLeft: '0.5rem', padding: '0.15rem 0.5rem', borderRadius: '9999px', background: 'rgba(139,92,246,0.15)', color: '#a78bfa', fontSize: '0.7rem', fontWeight: 600 }}>
-                    📚 {academicStressType === 'backlog' ? 'Backlog Detected' : academicStressType === 'exam_readiness' ? 'Exam Prep Needed' : academicStressType === 'comprehension' ? 'Comprehension Support' : 'Focus Training'}
-                  </span>
-                )}
+                Personalized activities based on your hobbies: <strong style={{ color: 'var(--color-text-accent)' }}>{hobbies}</strong>
               </p>
               <div className="space-y-3">
-                {getRecommendedTasks().map((task, idx) => (
+                {generateHobbyTasks().map((task, idx) => (
                   <div key={idx} className="metric-card flex items-center justify-between gap-4 p-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <span className="text-2xl shrink-0">{task.icon}</span>
@@ -380,23 +398,26 @@ const InterventionsPage = () => {
               </div>
             </div>
 
-            {/* Light hobby-based tasks */}
+            {/* Hobby-based tasks — all matched */}
             <div>
               <h2 className="text-lg font-bold mb-3" style={{ WebkitTextFillColor: 'unset', background: 'none', color: 'var(--color-text-main)' }}>
-                Quick Breathers
+                🎯 Stress-Buster Activities
               </h2>
+              <p className="text-sm text-[var(--color-text-muted)] mb-4">
+                Based on your hobbies: <strong style={{ color: 'var(--color-text-accent)' }}>{hobbies}</strong>
+              </p>
               <div className="space-y-3">
-                {getRecommendedTasks().slice(0, 3).map((task, idx) => (
+                {getRecommendedTasks().map((task, idx) => (
                   <div key={idx} className="metric-card flex items-center justify-between gap-4 p-4">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <span className="text-2xl shrink-0">{task.icon}</span>
                       <div className="min-w-0">
                         <span className="font-semibold block text-[var(--color-text-main)]">{task.title}</span>
-                        <span className="text-sm text-[var(--color-text-muted)] block truncate">{task.description}</span>
+                        <span className="text-sm text-[var(--color-text-muted)] block">{task.description}</span>
                       </div>
                     </div>
                     <button className="btn btn-secondary text-sm px-4 py-2 shrink-0" onClick={() => handleStartTask(task)}>
-                      Start
+                      Start & Verify
                     </button>
                   </div>
                 ))}
@@ -521,6 +542,32 @@ const InterventionsPage = () => {
                 🫁 Calm Your Body First
               </h3>
               <BreathingExercise />
+            </div>
+
+            {/* Calming hobby tasks for critical stress */}
+            <div>
+              <h2 className="text-lg font-bold mb-3" style={{ WebkitTextFillColor: 'unset', background: 'none', color: 'var(--color-text-main)' }}>
+                🌿 Calming Activities
+              </h2>
+              <p className="text-sm text-[var(--color-text-muted)] mb-4">
+                When you're ready, try one of these calming activities based on your hobbies: <strong style={{ color: 'var(--color-text-accent)' }}>{hobbies}</strong>
+              </p>
+              <div className="space-y-3">
+                {getRecommendedTasks().slice(0, 4).map((task, idx) => (
+                  <div key={idx} className="metric-card flex items-center justify-between gap-4 p-4">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-2xl shrink-0">{task.icon}</span>
+                      <div className="min-w-0">
+                        <span className="font-semibold block text-[var(--color-text-main)]">{task.title}</span>
+                        <span className="text-sm text-[var(--color-text-muted)] block">{task.description}</span>
+                      </div>
+                    </div>
+                    <button className="btn btn-secondary text-sm px-4 py-2 shrink-0" onClick={() => handleStartTask(task)}>
+                      Try It
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         );

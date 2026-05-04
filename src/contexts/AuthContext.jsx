@@ -4,6 +4,19 @@ const AuthContext = createContext();
 
 const STORAGE_KEY = 'soundmind_user';
 
+// ── Hardcoded credential ──
+const DEMO_CREDENTIALS = {
+  email: 'teamrocket01@gmail.com',
+  password: '0000',
+  userData: {
+    id: 'student-001',
+    name: 'Team Rocket',
+    email: 'teamrocket01@gmail.com',
+    picture: null,
+    isDemo: true,
+  },
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -19,6 +32,21 @@ export const AuthProvider = ({ children }) => {
       }
     }
     setLoading(false);
+  }, []);
+
+  // ── Email/Password login (demo credential) ──
+  const loginWithCredentials = useCallback((email, password) => {
+    const trimmedEmail = email.trim().toLowerCase();
+    if (
+      trimmedEmail === DEMO_CREDENTIALS.email &&
+      password === DEMO_CREDENTIALS.password
+    ) {
+      const userData = { ...DEMO_CREDENTIALS.userData };
+      setUser(userData);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+      return { success: true, user: userData };
+    }
+    return { success: false, error: 'Invalid email or password.' };
   }, []);
 
   const signInWithGoogle = useCallback(() => {
@@ -71,13 +99,14 @@ export const AuthProvider = ({ children }) => {
   const signOut = useCallback(() => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
+    // Don't clear consent data — that persists across sessions
     if (window.google?.accounts?.id) {
       window.google.accounts.id.disableAutoSelect();
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={{ user, loading, loginWithCredentials, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

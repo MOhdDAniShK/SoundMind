@@ -14,7 +14,7 @@ const SurveyPage = () => {
 
   useEffect(() => {
     if (!state.consent.webcam) {
-      navigate('/consent');
+      navigate('/home');
     }
   }, [state.consent, navigate]);
 
@@ -111,17 +111,7 @@ const SurveyPage = () => {
   // ── Question Navigation ──
   const handleAnswer = useCallback((id, value) => {
     setAnswers(prev => ({ ...prev, [id]: value }));
-
-    const q = questions.find(q => q.id === id);
-    if (q) {
-      const lowerText = q.text.toLowerCase();
-      if (lowerText.includes('hobby') || lowerText.includes('hobbies') || lowerText.includes('idle time') || lowerText.includes('favorite')) {
-        if (typeof value === 'string') {
-          dispatch({ type: 'SET_USER_HOBBIES', payload: value });
-        }
-      }
-    }
-  }, [questions, dispatch]);
+  }, []);
 
   const goNext = () => {
     if (currentQ < questions.length - 1) {

@@ -17,6 +17,8 @@ const initialState = {
   surveyQuestions: [],
   surveyAnswers: {},
   userHobbies: '',
+  userPrimaryStressor: '',
+  userOverwhelmingSubject: '',
   academicStressType: null, // 'backlog' | 'exam_readiness' | 'comprehension' | 'time_management' | null
   // Behavioral (webcam)
   behavioralData: null,
@@ -53,6 +55,10 @@ const appReducer = (state, action) => {
       return { ...state, surveyAnswers: action.payload };
     case 'SET_USER_HOBBIES':
       return { ...state, userHobbies: action.payload };
+    case 'SET_USER_PRIMARY_STRESSOR':
+      return { ...state, userPrimaryStressor: action.payload };
+    case 'SET_USER_OVERWHELMING_SUBJECT':
+      return { ...state, userOverwhelmingSubject: action.payload };
     case 'SET_ACADEMIC_STRESS_TYPE':
       return { ...state, academicStressType: action.payload };
     case 'SET_BEHAVIORAL':

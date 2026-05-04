@@ -17,7 +17,7 @@ import AnimatedBackground from './components/AnimatedBackground';
 import { useAppContext } from './contexts/AppContext';
 
 const SIDEBAR_LINKS = [
-  { to: '/consent', icon: '🏠', label: 'Home' },
+  { to: '/home', icon: '🏠', label: 'Home' },
   { to: '/survey', icon: '📋', label: 'Assessment' },
   { to: '/results', icon: '📊', label: 'Results', requiresAssessment: true },
   { to: '/interventions', icon: '🎯', label: 'Tasks', requiresAssessment: true },
@@ -168,7 +168,7 @@ const AppLayout = () => {
       </div>
       <main className="main-content">
         <Routes>
-          <Route path="/consent" element={<ConsentPage />} />
+          <Route path="/home" element={<ConsentPage />} />
           <Route path="/survey" element={<SurveyPage />} />
           <Route path="/results" element={<ResultsPage />} />
           <Route path="/interventions" element={<InterventionsPage />} />

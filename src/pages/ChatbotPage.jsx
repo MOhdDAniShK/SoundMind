@@ -32,7 +32,7 @@ const ChatbotPage = () => {
 
   // Initial greeting + API health check
   useEffect(() => {
-    if (needsRedirect) { navigate('/consent'); return; }
+    if (needsRedirect) { navigate('/home'); return; }
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 

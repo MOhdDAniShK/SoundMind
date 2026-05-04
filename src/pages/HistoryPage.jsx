@@ -60,7 +60,7 @@ const HistoryPage = () => {
       {isLoading ? (
         <div className="flex justify-center items-center h-64"><div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--color-primary)', borderTopColor: 'transparent' }}></div></div>
       ) : history.length === 0 ? (
-        <div className="glass-card text-center p-12"><div className="text-6xl mb-4">📊</div><h2 style={{ WebkitTextFillColor: 'unset', background: 'none', color: 'var(--color-text-main)' }}>No History Yet</h2><p className="mb-6">Take your first assessment to start tracking.</p><button className="btn btn-primary" onClick={() => navigate('/consent')}>Start Assessment</button></div>
+        <div className="glass-card text-center p-12"><div className="text-6xl mb-4">📊</div><h2 style={{ WebkitTextFillColor: 'unset', background: 'none', color: 'var(--color-text-main)' }}>No History Yet</h2><p className="mb-6">Take your first assessment to start tracking.</p><button className="btn btn-primary" onClick={() => navigate('/home')}>Start Assessment</button></div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10">
           <div className="lg:col-span-2 glass-card flex flex-col h-[400px]">

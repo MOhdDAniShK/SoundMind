@@ -1,6 +1,11 @@
-# SoundMind - StressDetector
+# SoundMind - StressDetecto
+only correct login password 
+email - teamrocket01@gmail.com
+password - 0000
 
 Link -- https://sound-mind-seven.vercel.app
+
+
 
 An AI-powered mental health assessment and intervention platform for students.
 

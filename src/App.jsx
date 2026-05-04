@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { AppProvider } from './contexts/AppContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 // Pages
 import LoginPage from './pages/LoginPage';
@@ -26,6 +27,8 @@ const SIDEBAR_LINKS = [
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { state } = useAppContext();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const needsAssessment = !state.surveyData && state.finalScore === 0;
 
   const handleLinkClick = (e, link) => {
@@ -37,6 +40,12 @@ const Sidebar = ({ isOpen, onClose }) => {
     onClose();
   };
 
+  const handleSignOut = () => {
+    signOut();
+    navigate('/');
+    onClose();
+  };
+
   return (
     <>
       <div className={`sidebar-overlay ${isOpen ? 'open' : ''}`} onClick={onClose} />
@@ -45,6 +54,41 @@ const Sidebar = ({ isOpen, onClose }) => {
           <div className="sidebar-brand-icon">🧠</div>
           <span className="sidebar-brand-text">SoundMind</span>
         </div>
+
+        {/* User Profile Section */}
+        {user && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            padding: '0.75rem 1.25rem',
+            margin: '0 0.75rem 0.5rem',
+            borderRadius: '0.75rem',
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid var(--color-border)',
+          }}>
+            <img
+              src={user.picture}
+              alt={user.name}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                border: '2px solid var(--color-primary)',
+              }}
+              referrerPolicy="no-referrer"
+            />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.name}
+              </div>
+              <div style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {user.email}
+              </div>
+            </div>
+          </div>
+        )}
+
         <nav className="sidebar-nav">
           <span className="sidebar-section">Navigation</span>
           {SIDEBAR_LINKS.map(link => (
@@ -61,6 +105,28 @@ const Sidebar = ({ isOpen, onClose }) => {
           ))}
         </nav>
         <div className="sidebar-footer">
+          {user && (
+            <button
+              onClick={handleSignOut}
+              style={{
+                width: '100%',
+                padding: '0.5rem 1rem',
+                marginBottom: '0.75rem',
+                borderRadius: '0.5rem',
+                border: '1px solid rgba(239,68,68,0.3)',
+                background: 'rgba(239,68,68,0.1)',
+                color: '#f87171',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.1)'; }}
+            >
+              Sign Out
+            </button>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <span className="live-dot" /> <span style={{ fontSize: '0.8rem', color: '#22c55e' }}>System Online</span>
           </div>
@@ -130,11 +196,13 @@ function ErrorFallback({ error }) {
 function App() {
   return (
     <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <AppProvider>
-        <BrowserRouter>
-          <AppLayout />
-        </BrowserRouter>
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <BrowserRouter>
+            <AppLayout />
+          </BrowserRouter>
+        </AppProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

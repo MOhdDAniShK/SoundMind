@@ -49,6 +49,18 @@ const assessmentSchema = new mongoose.Schema({
 
 const Assessment = mongoose.model('Assessment', assessmentSchema);
 
+// User model for Google Auth
+const userSchema = new mongoose.Schema({
+  googleId: { type: String, unique: true, required: true },
+  name: String,
+  email: { type: String, unique: true },
+  picture: String,
+  createdAt: { type: Date, default: Date.now },
+  lastLogin: { type: Date, default: Date.now },
+}, { strict: false });
+
+const User = mongoose.model('User', userSchema);
+
 // Helper: Convert OpenAI-style messages to Gemini format
 const toGeminiHistory = (messages) => {
   return messages.map(m => ({
@@ -395,6 +407,50 @@ app.post('/api/notify-parent', async (req, res) => {
   } catch (error) {
     console.error('Parent notification error:', error);
     res.status(500).json({ error: 'Failed to send notification' });
+  }
+});
+// ──── Google Auth Endpoint ────
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ error: 'No credential provided' });
+
+    // Decode the JWT (Google Identity Services tokens are self-verifiable)
+    const payload = JSON.parse(Buffer.from(credential.split('.')[1], 'base64').toString());
+
+    if (!process.env.MONGODB_URI) {
+      // No database — just return the decoded user
+      return res.json({
+        id: payload.sub,
+        name: payload.name,
+        email: payload.email,
+        picture: payload.picture,
+      });
+    }
+
+    // Upsert user in MongoDB
+    const user = await User.findOneAndUpdate(
+      { googleId: payload.sub },
+      {
+        googleId: payload.sub,
+        name: payload.name,
+        email: payload.email,
+        picture: payload.picture,
+        lastLogin: new Date(),
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({
+      id: user._id,
+      googleId: user.googleId,
+      name: user.name,
+      email: user.email,
+      picture: user.picture,
+    });
+  } catch (error) {
+    console.error('Google Auth error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
   }
 });
 

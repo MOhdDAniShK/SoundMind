@@ -1,5 +1,7 @@
 # SoundMind - StressDetector
 
+Link -- https://sound-mind-seven.vercel.app
+
 An AI-powered mental health assessment and intervention platform for students.
 
 ## Features

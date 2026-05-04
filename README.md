@@ -45,7 +45,5 @@ An AI-powered mental health assessment and intervention platform for students.
      npm run dev
      \`\`\`
 
-5. **Open App:** Navigate to \`http://localhost:5173\`
-
 ## Note on MediaPipe
 The first time you load the webcam analysis, it may take a few seconds to download the WebAssembly ML models. All processing happens locally in your browser. No video is ever sent to a server.
